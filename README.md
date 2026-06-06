@@ -1,10 +1,12 @@
-# @amartinr/pi-searxng
+# @graelo/pi-searxng
 
 A **minimalist** SearXNG web search extension for [Pi](https://github.com/earendil-works/pi).
 
 This is a focused, no-frills implementation that provides only web search and result caching — no content fetching, no repository cloning, no external dependencies beyond SearXNG.
 
 > **Note:** This is an independent fork of [jcha0713/pi-searxng](https://github.com/jcha0713/pi-searxng), stripped down to its core search functionality with improved caching.
+>
+> **Note:** This is a temp fork of [amartinr/pi-searxng](https://github.com/amartinr/pi-searxng) with a fix on the agent dir.
 
 ## Features
 
@@ -28,13 +30,13 @@ If you need content extraction or repo browsing, consider using other Pi extensi
 ## Installation
 
 ```bash
-pi install npm:@amartinr/pi-searxng
+pi install npm:@graelo/pi-searxng
 ```
 
 Or try without installing:
 
 ```bash
-pi -e npm:@amartinr/pi-searxng
+pi -e npm:@graelo/pi-searxng
 ```
 
 ## Building
@@ -79,6 +81,7 @@ export SEARXNG_URL=http://localhost:8080
 Search the web using SearXNG. Results are automatically cached for subsequent identical queries.
 
 **Parameters:**
+
 - `query` (string, required) - Search query
 - `limit` (number, optional) - Max results to return (overrides `maxResults` from config). Note: the actual number returned depends on SearXNG's internal configuration.
 
@@ -89,6 +92,7 @@ Search the web using SearXNG. Results are automatically cached for subsequent id
 Retrieve cached search results by ID. Returns the original query and all cached results.
 
 **Parameters:**
+
 - `searchId` (string, required) - Search ID returned from a previous `web_search` call
 
 **Returns:** The original search query and the cached results. If the `searchId` is not found, returns an error message.
@@ -104,7 +108,7 @@ Both tools return error messages within the response content when something fail
 
 Results are returned as numbered entries with the following structure:
 
-```
+```text
 1. **Result Title**
    https://example.com
    Short snippet of the result content...

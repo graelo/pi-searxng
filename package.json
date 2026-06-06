@@ -1,6 +1,6 @@
 {
-  "name": "@amartinr/pi-searxng",
-  "version": "1.0.3",
+  "name": "@graelo/pi-searxng",
+  "version": "1.0.4",
   "description": "A minimalist SearXNG web search extension for Pi",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,11 +15,11 @@
     "prepublish": "npm run clean && npm run build"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
   },
   "devDependencies": {
     "@earendil-works/pi-tui": "*",
-    "@sinclair/typebox": "*",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
@@ -43,7 +43,10 @@
     "node": ">=18"
   },
   "license": "MIT",
-  "author": "A. Martin <abel.martin.ruiz@gmail.com>",
+  "contributors": [
+    "A. Martin <abel.martin.ruiz@gmail.com>",
+    "graelo <graelo@graelo.cc>"
+  ],
   "publishConfig": {
     "access": "public"
   }
