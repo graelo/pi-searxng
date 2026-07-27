@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+
+const EXTENSION_NAME = "pi-searxng";
+const CONFIG_FILENAME = "config.json";
 
 /**
  * Resolves the pi coding agent directory in a robust way.
@@ -28,12 +31,39 @@ function resolveAgentDir(): string {
   return join("/", ".pi", "agent");
 }
 
-const CONFIG_PATH = join(
-  resolveAgentDir(),
-  "extensions",
-  "pi-searxng",
-  "config.json"
-);
+/**
+ * Find the root of the current git repository, if any.
+ *
+ * `.git` is a directory in a normal clone, but a file in worktrees and
+ * submodules, so mere existence is what marks the root.
+ */
+function findGitRoot(startPath: string): string | null {
+  let current = resolve(startPath);
+  const root = resolve("/");
+
+  while (current !== root) {
+    const gitDir = join(current, ".git");
+    if (existsSync(gitDir)) {
+      return current;
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
+}
+
+/** Global config path: `<agent-dir>/extensions/pi-searxng/config.json`. */
+function resolveAgentConfigPath(): string {
+  return join(resolveAgentDir(), "extensions", EXTENSION_NAME, CONFIG_FILENAME);
+}
+
+/** Project-local config path: `<repo-root>/.pi/extensions/pi-searxng/config.json`, if inside a repo. */
+function resolveRepoConfigPath(): string | null {
+  const gitRoot = findGitRoot(process.cwd());
+  if (!gitRoot) return null;
+  return join(gitRoot, ".pi", "extensions", EXTENSION_NAME, CONFIG_FILENAME);
+}
 
 export interface Config {
   searxngUrl: string;
@@ -56,26 +86,39 @@ export function loadConfig(): Config {
     safesearch: "off"
   };
 
-  if (!existsSync(CONFIG_PATH)) {
+  // Highest priority first: the repo-root (project-local) config, then the
+  // agent-dir (global) one. The first file found is the only one read — a
+  // project config replaces the global one rather than layering over it.
+  const configPaths = [resolveRepoConfigPath(), resolveAgentConfigPath()].filter(
+    (path): path is string => path !== null
+  );
+
+  let merged: Record<string, unknown> | null = null;
+
+  for (const configPath of configPaths) {
+    if (!existsSync(configPath)) continue;
+
+    try {
+      const raw = JSON.parse(readFileSync(configPath, "utf-8"));
+      merged = { ...defaults, ...(raw as Record<string, unknown>) };
+      break;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `Failed to parse config file (${configPath}): ${msg}\n` +
+        `Skipping this config file.`
+      );
+    }
+  }
+
+  if (!merged) {
     console.info(
-      `Config file not found at ${CONFIG_PATH}. Using default settings.`
+      `No config file found (checked ${configPaths.join(", ")}). Using default settings.`
     );
     return defaults;
   }
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(
-      `Failed to parse config file (${CONFIG_PATH}): ${msg}\n` +
-      `SearXNG will use default settings. Fix the config file or delete it to restore defaults.`
-    );
-    return defaults;
-  }
-
-  const config = { ...defaults, ...(raw as Record<string, unknown>) } as Config;
+  const config = merged as unknown as Config;
 
   try {
     if (typeof config.searxngUrl !== "string") {

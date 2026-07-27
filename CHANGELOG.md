@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Repo-local config tier** — `config.json` is now also read from
+  `<repo-root>/.pi/extensions/pi-searxng/config.json`, where the repo root
+  is found by walking up from the current directory to the nearest `.git`.
+  This project-local config takes precedence over the global
+  `~/.pi/agent/extensions/pi-searxng/config.json`: the first location that
+  exists is the only one read, so a project-local file replaces the global
+  one rather than layering over it
+
 ## [1.0.2] - 2026-05-23
 
 ### Added

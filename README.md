@@ -50,7 +50,14 @@ This compiles the TypeScript source in `src/` to JavaScript in `dist/`.
 
 ## Configuration
 
-Create `~/.pi/agent/extensions/pi-searxng/config.json`:
+Create a config file at one of these locations (checked in order — the first one that exists is the only one read):
+
+1. `<repo-root>/.pi/extensions/pi-searxng/config.json` — project-local, only when running inside that git repository (found by walking up from the current directory to the nearest `.git`)
+2. `~/.pi/agent/extensions/pi-searxng/config.json` — global, applies everywhere
+
+A project-local file replaces the global one entirely rather than overriding individual
+fields, so it should list every setting you want: anything it omits falls back to the
+built-in defaults, not to your global config.
 
 ```json
 {
@@ -128,7 +135,7 @@ The package includes an in-memory cache that reduces redundant calls to SearXNG:
 
 ### Cache configuration
 
-These fields can be added to `~/.pi/agent/extensions/pi-searxng/config.json`:
+These fields can be added to either config location described above:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
