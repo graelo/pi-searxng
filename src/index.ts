@@ -52,7 +52,13 @@ function getCacheEntry(id: string): CacheEntry | undefined {
   return entry;
 }
 
-const config = loadConfig();
+const { config, diagnostics, notices } = loadConfig();
+for (const problem of diagnostics) {
+  console.warn(problem);
+}
+for (const notice of notices) {
+  console.info(notice);
+}
 const CACHE_FRESHNESS_MS = config.cacheFreshnessMs;
 const CACHE_TTL_MS = config.cacheTtlMs;
 const MAX_CACHE_SIZE = config.cacheMaxSize;
