@@ -3,16 +3,15 @@
   "version": "1.0.4",
   "description": "A minimalist SearXNG web search extension for Pi",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "src/index.ts",
   "files": [
-    "dist"
+    "src"
   ],
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build",
-    "prepublish": "npm run clean && npm run build"
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@graelo/pi-ext-config": "^0.1.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
@@ -20,12 +19,12 @@
   },
   "devDependencies": {
     "@earendil-works/pi-tui": "*",
-    "@types/node": "^20.0.0",
+    "@types/node": "^22",
     "typescript": "^5.0.0"
   },
   "pi": {
     "extensions": [
-      "./dist/index.js"
+      "./src/index.ts"
     ]
   },
   "repository": {
@@ -40,7 +39,7 @@
     "web-search"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "license": "MIT",
   "contributors": [
