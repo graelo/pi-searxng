@@ -39,14 +39,15 @@ Or try without installing:
 pi -e npm:@graelo/pi-searxng
 ```
 
-## Building
+## Developing
 
 ```bash
 npm install
-npm run build
+npm run check
 ```
 
-This compiles the TypeScript source in `src/` to JavaScript in `dist/`.
+There is no build step — Pi loads `src/index.ts` directly, so `npm run check`
+(`tsc --noEmit`) type-checks without emitting anything.
 
 ## Configuration
 
