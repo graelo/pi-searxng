@@ -147,7 +147,7 @@ These fields can be added to either config location described above:
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 24+
 - A running SearXNG instance (for web search)
 
 ## License
