@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Trust-aware config resolution** — project-local configuration is considered only
+  for trusted Pi projects (`ctx.isProjectTrusted()`); global configuration remains
+  available for every session. Configuration loading is deferred until `session_start`
+  so project files are never read before a session context exists.
+- **Shared config dependency** — updated `@graelo/pi-ext-config` to `^0.2.0`.
+
 ### Added
 - **Repo-local config tier** — `config.json` is now also read from
   `<repo-root>/.pi/extensions/pi-searxng/config.json`, where the repo root

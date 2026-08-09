@@ -44,6 +44,7 @@ pi -e npm:@graelo/pi-searxng
 ```bash
 npm install
 npm run check
+npm test
 ```
 
 There is no build step — Pi loads `src/index.ts` directly, so `npm run check`
@@ -53,8 +54,8 @@ There is no build step — Pi loads `src/index.ts` directly, so `npm run check`
 
 Create a config file at one of these locations (checked in order — the first one that exists is the only one read):
 
-1. `<repo-root>/.pi/extensions/pi-searxng/config.json` — project-local, only when running inside that git repository (found by walking up from the current directory to the nearest `.git`)
-2. `~/.pi/agent/extensions/pi-searxng/config.json` — global, applies everywhere
+1. `<repo-root>/.pi/extensions/pi-searxng/config.json` — project-local, considered only after Pi has started a session and `ctx.isProjectTrusted()` is true. The repository root is found by walking up from the session directory to the nearest `.git`.
+2. `~/.pi/agent/extensions/pi-searxng/config.json` — global, always available, including for untrusted projects. Before `session_start`, the extension uses built-in defaults until a session-specific configuration can be resolved.
 
 A project-local file replaces the global one entirely rather than overriding individual
 fields, so it should list every setting you want: anything it omits falls back to the
