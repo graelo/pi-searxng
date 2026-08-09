@@ -10,7 +10,7 @@ export interface Config {
   safesearch: "off" | "moderate" | "strict";
 }
 
-const DEFAULTS: Config = {
+export const DEFAULT_CONFIG: Config = {
   searxngUrl: process.env.SEARXNG_URL || "http://localhost:8080",
   timeoutMs: 30000,
   maxResults: 10,
@@ -19,6 +19,16 @@ const DEFAULTS: Config = {
   cacheMaxSize: 200,
   safesearch: "off"
 };
+
+export interface SessionConfigContext {
+  cwd: string;
+  isProjectTrusted(): boolean;
+}
+
+export interface LoadConfigOptions extends ConfigLocationOptions {
+  /** Whether the current Pi project is trusted enough to use project config. */
+  isProjectTrusted?: boolean;
+}
 
 export interface LoadedConfig {
   config: Config;
@@ -62,17 +72,24 @@ function validate(config: Config): void {
 }
 
 /**
- * Load `config.json` from the project tier, or else the global one.
+ * Load `config.json` from the project tier when the project is trusted, or else
+ * from the global tier.
  *
  * `first-match` because this config is flat and its keys travel together: a project
  * file is a deliberate, complete statement, and there's never any doubt which file
- * is in effect.
+ * is in effect. Without an explicit trust decision, only the global tier is used;
+ * this keeps project config out of extension initialization before `session_start`.
  */
-export function loadConfig(options?: ConfigLocationOptions): LoadedConfig {
+export function loadConfig(options: LoadConfigOptions = {}): LoadedConfig {
+  const { isProjectTrusted, ...locationOptions } = options;
   const { config, sources, candidates, diagnostics } = loadConfigFile<Config>(
     "pi-searxng",
-    DEFAULTS,
-    { ...options, strategy: "first-match" }
+    DEFAULT_CONFIG,
+    {
+      ...locationOptions,
+      includeProject: isProjectTrusted === true,
+      strategy: "first-match",
+    }
   );
 
   const notices: string[] = [];
@@ -90,8 +107,23 @@ export function loadConfig(options?: ConfigLocationOptions): LoadedConfig {
     diagnostics.push(
       `Invalid config values, using defaults: ${err instanceof Error ? err.message : String(err)}`
     );
-    // A fresh copy: `DEFAULTS` is module-level, and handing it out by reference would let
+    // A fresh copy: `DEFAULT_CONFIG` is module-level, and handing it out by reference would let
     // one caller's mutation leak into every later load.
-    return { config: { ...DEFAULTS }, diagnostics, notices };
+    return { config: { ...DEFAULT_CONFIG }, diagnostics, notices };
   }
+}
+
+/**
+ * Load configuration for an active Pi session. Project config is only considered
+ * after Pi has resolved the session's project trust decision.
+ */
+export function loadConfigForSession(
+  context: SessionConfigContext,
+  options?: Omit<ConfigLocationOptions, "cwd" | "includeProject">
+): LoadedConfig {
+  return loadConfig({
+    ...options,
+    cwd: context.cwd,
+    isProjectTrusted: context.isProjectTrusted(),
+  });
 }

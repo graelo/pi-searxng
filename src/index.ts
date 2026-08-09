@@ -4,7 +4,11 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
 import type { SearchResult } from "./searxng.js";
 import { search } from "./searxng.js";
-import { loadConfig } from "./config.js";
+import {
+  DEFAULT_CONFIG,
+  loadConfigForSession,
+  type Config,
+} from "./config.js";
 
 interface CacheEntry {
   query: string;
@@ -52,29 +56,39 @@ function getCacheEntry(id: string): CacheEntry | undefined {
   return entry;
 }
 
-const { config, diagnostics, notices } = loadConfig();
-for (const problem of diagnostics) {
-  console.warn(problem);
+// Configuration is initialized with defaults until session_start, when Pi has
+// resolved project trust and the session-specific config can be loaded safely.
+let config: Config = { ...DEFAULT_CONFIG };
+let cacheFreshnessMs = config.cacheFreshnessMs;
+let cacheTtlMs = config.cacheTtlMs;
+let maxCacheSize = config.cacheMaxSize;
+
+function applyConfig(loaded: ReturnType<typeof loadConfigForSession>): void {
+  config = loaded.config;
+  cacheFreshnessMs = config.cacheFreshnessMs;
+  cacheTtlMs = config.cacheTtlMs;
+  maxCacheSize = config.cacheMaxSize;
+
+  for (const problem of loaded.diagnostics) {
+    console.warn(problem);
+  }
+  for (const notice of loaded.notices) {
+    console.info(notice);
+  }
 }
-for (const notice of notices) {
-  console.info(notice);
-}
-const CACHE_FRESHNESS_MS = config.cacheFreshnessMs;
-const CACHE_TTL_MS = config.cacheTtlMs;
-const MAX_CACHE_SIZE = config.cacheMaxSize;
 
 function cleanup(): void {
   const now = Date.now();
 
   // Remove expired entries
   for (const [id, entry] of searchCache) {
-    if (now - entry.lastAccessed > CACHE_TTL_MS) {
+    if (now - entry.lastAccessed > cacheTtlMs) {
       searchCache.delete(id);
     }
   }
 
   // Evict oldest entries if over limit
-  while (searchCache.size > MAX_CACHE_SIZE) {
+  while (searchCache.size > maxCacheSize) {
     const firstKey = searchCache.keys().next().value;
     if (firstKey) searchCache.delete(firstKey);
   }
@@ -93,6 +107,19 @@ function formatSearchResults(results: SearchResult[]): string {
 }
 
 export default function (pi: ExtensionAPI) {
+  // Project-tier configuration is deferred until this event because trust is
+  // only available on the session context. Global configuration is still used
+  // when the project is untrusted.
+  pi.on("session_start", (_event, ctx) => {
+    const sessionContext = {
+      cwd: ctx.cwd,
+      isProjectTrusted: () =>
+        (ctx as typeof ctx & { isProjectTrusted?: () => boolean })
+          .isProjectTrusted?.() === true,
+    };
+    applyConfig(loadConfigForSession(sessionContext));
+  });
+
   pi.registerTool({
     name: "web_search",
     label: "Web Search",
@@ -126,7 +153,7 @@ export default function (pi: ExtensionAPI) {
       try {
         cleanup();
         const cached = getCacheEntry(searchId);
-        const isStale = cached && (Date.now() - cached.createdAt > CACHE_FRESHNESS_MS);
+        const isStale = cached && (Date.now() - cached.createdAt > cacheFreshnessMs);
 
         let results: SearchResult[];
 
