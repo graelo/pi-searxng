@@ -1,6 +1,6 @@
 {
   "name": "@graelo/pi-searxng",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A minimalist SearXNG web search extension for Pi",
   "type": "module",
   "main": "src/index.ts",
