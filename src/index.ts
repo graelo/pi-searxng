@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
@@ -11,38 +10,21 @@ import {
 } from "./config.js";
 
 interface CacheEntry {
-  query: string;
-  limit: number | undefined;
   results: SearchResult[];
   createdAt: number;
   lastAccessed: number;
 }
 
 interface WebSearchSuccessDetails {
-  searchId: string;
   resultCount: number;
   query: string;
 }
 
 interface WebSearchErrorDetails {
-  searchId: string;
   error: string;
 }
 
 type WebSearchDetails = WebSearchSuccessDetails | WebSearchErrorDetails;
-
-interface GetResultsSuccessDetails {
-  searchId: string;
-  query: string;
-  resultCount: number;
-}
-
-interface GetResultsErrorDetails {
-  searchId: string;
-  error: string;
-}
-
-type GetResultsDetails = GetResultsSuccessDetails | GetResultsErrorDetails;
 
 const searchCache = new Map<string, CacheEntry>();
 
@@ -94,9 +76,8 @@ function cleanup(): void {
   }
 }
 
-function generateId(query: string, limit?: number): string {
-  const key = limit !== undefined ? `${query}|${limit}` : query;
-  return createHash("md5").update(key).digest("hex");
+function getCacheKey(query: string, limit?: number): string {
+  return `${query}\u0000${limit ?? ""}`;
 }
 
 function formatSearchResults(results: SearchResult[]): string {
@@ -141,18 +122,18 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      const searchId = generateId(params.query, limit);
+      const cacheKey = getCacheKey(params.query, limit);
 
       if (signal?.aborted) {
         return {
           content: [{ type: "text", text: "Aborted" }],
-          details: { searchId, error: "Aborted" }
+          details: { error: "Aborted" }
         } as AgentToolResult<WebSearchDetails>;
       }
 
       try {
         cleanup();
-        const cached = getCacheEntry(searchId);
+        const cached = getCacheEntry(cacheKey);
         const isStale = cached && (Date.now() - cached.createdAt > cacheFreshnessMs);
 
         let results: SearchResult[];
@@ -165,9 +146,7 @@ export default function (pi: ExtensionAPI) {
           // Not found or stale → search SearXNG
           const { results: newResults } = await search(params.query, limit, config);
           results = newResults;
-          searchCache.set(searchId, {
-            query: params.query,
-            limit,
+          searchCache.set(cacheKey, {
             results,
             createdAt: isStale ? Date.now() : (cached?.createdAt || Date.now()),
             lastAccessed: Date.now()
@@ -176,12 +155,12 @@ export default function (pi: ExtensionAPI) {
 
         return {
           content: [{ type: "text", text: warningNote + formatSearchResults(results) }],
-          details: { searchId, resultCount: results.length, query: params.query }
+          details: { resultCount: results.length, query: params.query }
         } as AgentToolResult<WebSearchDetails>;
       } catch (err) {
         return {
           content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
-          details: { searchId, error: String(err) }
+          details: { error: String(err) }
         } as AgentToolResult<WebSearchDetails>;
       }
     },
@@ -198,33 +177,4 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.registerTool({
-    name: "get_search_results",
-    label: "Get Search Results",
-    description: "Retrieve previous search results by ID",
-    parameters: Type.Object({
-      searchId: Type.String()
-    }),
-    
-    async execute(_id, params) {
-      cleanup();
-
-      const cached = getCacheEntry(params.searchId);
-      if (!cached) {
-        return {
-          content: [{ type: "text", text: "Search not found" }],
-          details: { searchId: params.searchId, error: "Search not found" }
-        } as AgentToolResult<GetResultsDetails>;
-      }
-
-      // Update lastAccessed (LRU behavior)
-      cached.lastAccessed = Date.now();
-
-      const limitText = cached.limit !== undefined ? ` (limit: ${cached.limit})` : "";
-      return {
-        content: [{ type: "text", text: `Query: "${cached.query}"${limitText}\n\n${formatSearchResults(cached.results)}` }],
-        details: { searchId: params.searchId, query: cached.query, resultCount: cached.results.length }
-      } as AgentToolResult<GetResultsDetails>;
-    }
-  });
 }

@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exists is the only one read, so a project-local file replaces the global
   one rather than layering over it
 
+### Removed
+- **`get_search_results` tool** — the synchronous `web_search` tool already returns
+  complete results, so the public cache lookup tool was redundant
+- **Public search IDs** — cache keys remain internal to the extension
+
 ## [1.0.2] - 2026-05-23
 
 ### Added

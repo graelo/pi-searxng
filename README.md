@@ -11,8 +11,8 @@ This is a focused, no-frills implementation that provides only web search and re
 ## Features
 
 - **Web Search** - Search the web via a SearXNG instance
-- **Cached Results** - Retrieve previous search results by ID for follow-up queries
-- **Smart Caching** - Deterministic IDs, freshness TTL, LRU eviction, and deduplication
+- **Cached Results** - Avoid redundant requests for identical queries
+- **Smart Caching** - Freshness TTL, LRU eviction, and query deduplication
 - **Safesearch** - Configurable content filtering (`off`, `moderate`, `strict`)
 
 ## Design Philosophy
@@ -94,24 +94,11 @@ Search the web using SearXNG. Results are automatically cached for subsequent id
 - `query` (string, required) - Search query
 - `limit` (number, optional) - Max results to return (overrides `maxResults` from config). Note: the actual number returned depends on SearXNG's internal configuration.
 
-**Returns:** A `searchId` in the `details` field, which can be used with `get_search_results` or passed to subsequent calls.
-
-### `get_search_results`
-
-Retrieve cached search results by ID. Returns the original query and all cached results.
-
-**Parameters:**
-
-- `searchId` (string, required) - Search ID returned from a previous `web_search` call
-
-**Returns:** The original search query and the cached results. If the `searchId` is not found, returns an error message.
+**Returns:** The matching search results. Identical queries are served from the in-memory cache while the cached entry is fresh.
 
 ## Error Handling
 
-Both tools return error messages within the response content when something fails:
-
-- **`web_search`** — If SearXNG is unreachable, returns a descriptive error (including the HTTP status and response body).
-- **`get_search_results`** — Returns "Search not found" if the `searchId` doesn't exist in the cache.
+`web_search` returns error messages within the response content when something fails. If SearXNG is unreachable, the error includes the HTTP status and response body.
 
 ## Result Format
 
@@ -129,7 +116,7 @@ Each result includes the **title**, **URL**, and a **snippet** (truncated to 200
 
 The package includes an in-memory cache that reduces redundant calls to SearXNG:
 
-- **Deterministic IDs** — The `searchId` is an MD5 hash of the query text, so the same query always produces the same ID. This enables cache deduplication and lookup via `get_search_results`.
+- **Query deduplication** — Identical queries with the same limit share a cache entry.
 - **Freshness TTL** — Cache entries are considered fresh for a configurable period (default: **15 min**). Stale entries trigger a new search instead of returning cached results.
 - **Eviction TTL** — Entries that haven't been accessed within **24 hours** are automatically removed.
 - **LRU eviction** — When the cache exceeds **200 entries**, the oldest (least recently used) entries are evicted.
