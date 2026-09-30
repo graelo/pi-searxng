@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] - 2026-10-01
+
+### Changed
+- **Peer dependencies** — `typebox` and `@earendil-works/pi-tui` are now declared
+  as `peerDependencies`, making it explicit that they are provided by the Pi agent
+  host rather than installed as direct dependencies
+
+## [1.3.0] - 2026-08-11
+
+### Removed
+- **`get_search_results` tool** — the synchronous `web_search` tool already returns
+  complete results, so the public cache lookup tool was redundant
+- **Public search IDs** — cache keys remain internal to the extension
+
+## [1.2.0] - 2026-08-09
 
 ### Changed
 - **Trust-aware config resolution** — project-local configuration is considered only
@@ -22,11 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `~/.pi/agent/extensions/pi-searxng/config.json`: the first location that
   exists is the only one read, so a project-local file replaces the global
   one rather than layering over it
-
-### Removed
-- **`get_search_results` tool** — the synchronous `web_search` tool already returns
-  complete results, so the public cache lookup tool was redundant
-- **Public search IDs** — cache keys remain internal to the extension
 
 ## [1.0.2] - 2026-05-23
 
