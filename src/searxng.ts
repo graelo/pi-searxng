@@ -6,8 +6,20 @@ export interface SearchResult {
   snippet: string;
 }
 
+export interface Infobox {
+  title: string;
+  content: string;
+  url: string;
+}
+
 export interface SearchResponse {
   results: SearchResult[];
+  /** Direct answers (e.g. from answer engines / instant answers). */
+  answers: string[];
+  /** Infoboxes (e.g. Wikipedia summaries) returned alongside or instead of results. */
+  infoboxes: Infobox[];
+  /** Engines that failed to respond, as reported by SearXNG. */
+  unresponsiveEngines: string[];
 }
 
 const MAX_ERROR_BODY_LENGTH = 200;
@@ -74,8 +86,33 @@ export async function search(query: string, limit: number | undefined, config: C
           : "",
         snippet: r.content || r.abstract || ""
       }));
-    
-    return { results };
+
+    const answers: string[] = Array.isArray(data.answers)
+      ? data.answers.filter((a: unknown): a is string => typeof a === "string")
+      : [];
+
+    const infoboxes: Infobox[] = (Array.isArray(data.infoboxes) ? data.infoboxes : [])
+      .map((box: any) => ({
+        title: box?.infobox || box?.title || "Untitled",
+        content: box?.content || "",
+        url:
+          typeof box?.url === "string" && box.url ? box.url
+          : Array.isArray(box?.urls) && typeof box.urls[0]?.url === "string" ? box.urls[0].url
+          : ""
+      }));
+
+    // SearXNG reports unresponsive engines as [name, error] pairs; older
+    // versions used plain strings. Accept both so the note stays accurate.
+    const unresponsiveEngines: string[] = (Array.isArray(data.unresponsive_engines)
+      ? data.unresponsive_engines
+      : [])
+      .map((e: unknown) =>
+        Array.isArray(e) && typeof e[0] === "string" ? e[0]
+        : typeof e === "string" ? e
+        : "")
+      .filter(Boolean);
+
+    return { results, answers, infoboxes, unresponsiveEngines };
   } finally {
     clearTimeout(timeout);
   }

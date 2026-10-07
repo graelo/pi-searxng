@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Empty results are no longer cached** — a transient SearXNG failure (upstream
+  engines rate-limited or blocked) used to be cached as fresh for the full freshness
+  TTL (15 min by default), making the same query return "No results found." long
+  after the engines recovered. Empty responses now always trigger a new search on
+  the next call.
+
+### Added
+- **Unresponsive engines are reported** — when SearXNG returns an empty result
+  list and reports unresponsive engines, the response includes a note naming
+  them, so transient upstream failures are distinguishable from genuine no-matches.
+- **Answers and infoboxes** — searches that produce direct answers or infoboxes
+  but no web results now return those instead of a bare "No results found."
+
 ## [1.4.1] - 2026-10-07
 
 ### Changed

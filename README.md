@@ -100,6 +100,8 @@ Search the web using SearXNG. Results are automatically cached for subsequent id
 
 `web_search` returns error messages within the response content when something fails. If SearXNG is unreachable, the error includes the HTTP status and response body.
 
+Empty result lists are often caused by upstream search engines being rate-limited or blocked rather than by the query itself. When SearXNG reports unresponsive engines, the response includes a note listing them (e.g. `Note: 2 search engine(s) unresponsive: google, bing`), so transient failures are distinguishable from genuinely no matches. If the search only produced answers or infoboxes (no web results), those are returned instead of a bare "No results found."
+
 ## Result Format
 
 Results are returned as numbered entries with the following structure:
@@ -112,11 +114,22 @@ Results are returned as numbered entries with the following structure:
 
 Each result includes the **title**, **URL**, and a **snippet** (truncated to 200 characters).
 
+When a search yields no web results but SearXNG found direct answers or infoboxes, those are returned instead:
+
+```text
+Answer: 42
+
+**Wikipedia — Douglas Adams**
+   English writer and humorist...
+   https://en.wikipedia.org/wiki/Douglas_Adams
+```
+
 ## Caching
 
 The package includes an in-memory cache that reduces redundant calls to SearXNG:
 
 - **Query deduplication** — Identical queries with the same limit share a cache entry.
+- **Empty results are never cached** — Empty result lists are often a transient upstream failure (engines rate-limited or blocked), so they always trigger a new search on the next call instead of being served from cache.
 - **Freshness TTL** — Cache entries are considered fresh for a configurable period (default: **15 min**). Stale entries trigger a new search instead of returning cached results.
 - **Eviction TTL** — Entries that haven't been accessed within **24 hours** are automatically removed.
 - **LRU eviction** — When the cache exceeds **200 entries**, the oldest (least recently used) entries are evicted.

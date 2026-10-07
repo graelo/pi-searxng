@@ -1,8 +1,7 @@
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import type { SearchResult } from "./searxng.js";
-import { search } from "./searxng.js";
+import { search, type SearchResponse } from "./searxng.js";
 import {
   DEFAULT_CONFIG,
   loadConfigForSession,
@@ -10,7 +9,7 @@ import {
 } from "./config.js";
 
 interface CacheEntry {
-  results: SearchResult[];
+  response: SearchResponse;
   createdAt: number;
   lastAccessed: number;
 }
@@ -18,6 +17,7 @@ interface CacheEntry {
 interface WebSearchSuccessDetails {
   resultCount: number;
   query: string;
+  unresponsiveEngines?: string[];
 }
 
 interface WebSearchErrorDetails {
@@ -80,11 +80,38 @@ function getCacheKey(query: string, limit?: number): string {
   return `${query}\u0000${limit ?? ""}`;
 }
 
-function formatSearchResults(results: SearchResult[]): string {
-  if (results.length === 0) return "No results found.";
-  return results.map((r, i) => 
-    `${i + 1}. **${r.title}**\n   ${r.url}\n   ${r.snippet.slice(0, 200)}${r.snippet.length > 200 ? "..." : ""}`
-  ).join("\n\n");
+function formatSearchResponse(response: SearchResponse): string {
+  const parts: string[] = [];
+
+  if (response.results.length > 0) {
+    parts.push(
+      response.results
+        .map((r, i) =>
+          `${i + 1}. **${r.title}**\n   ${r.url}\n   ${r.snippet.slice(0, 200)}${r.snippet.length > 200 ? "..." : ""}`
+        )
+        .join("\n\n")
+    );
+  } else {
+    // SearXNG sometimes finds answers or infoboxes without any web results;
+    // surface those instead of a bare "no results".
+    const fallback = [
+      ...response.answers.map((a) => `Answer: ${a}`),
+      ...response.infoboxes.map(
+        (b) => `**${b.title}**\n   ${b.content}${b.url ? `\n   ${b.url}` : ""}`
+      )
+    ];
+    parts.push(fallback.length > 0 ? fallback.join("\n\n") : "No results found.");
+  }
+
+  // Empty result lists are often caused by upstream engines being
+  // rate-limited or blocked; report which engines failed so it's diagnosable.
+  if (response.unresponsiveEngines.length > 0) {
+    parts.push(
+      `Note: ${response.unresponsiveEngines.length} search engine(s) unresponsive: ${response.unresponsiveEngines.join(", ")}`
+    );
+  }
+
+  return parts.join("\n\n");
 }
 
 export default function (pi: ExtensionAPI) {
@@ -136,26 +163,39 @@ export default function (pi: ExtensionAPI) {
         const cached = getCacheEntry(cacheKey);
         const isStale = cached && (Date.now() - cached.createdAt > cacheFreshnessMs);
 
-        let results: SearchResult[];
+        let response: SearchResponse;
 
         if (cached && !isStale) {
           // Fresh cache → return directly
           cached.lastAccessed = Date.now();
-          results = cached.results;
+          response = cached.response;
         } else {
           // Not found or stale → search SearXNG
-          const { results: newResults } = await search(params.query, limit, config);
-          results = newResults;
-          searchCache.set(cacheKey, {
-            results,
-            createdAt: isStale ? Date.now() : (cached?.createdAt || Date.now()),
-            lastAccessed: Date.now()
-          });
+          response = await search(params.query, limit, config);
+          if (response.results.length > 0) {
+            searchCache.set(cacheKey, {
+              response,
+              createdAt: isStale ? Date.now() : (cached?.createdAt || Date.now()),
+              lastAccessed: Date.now()
+            });
+          } else if (cached) {
+            // Empty results are often a transient upstream failure (engines
+            // rate-limited or blocked). Never cache them as fresh — and drop
+            // the stale entry so the next call searches again instead of
+            // serving an outdated empty list.
+            searchCache.delete(cacheKey);
+          }
         }
 
         return {
-          content: [{ type: "text", text: warningNote + formatSearchResults(results) }],
-          details: { resultCount: results.length, query: params.query }
+          content: [{ type: "text", text: warningNote + formatSearchResponse(response) }],
+          details: {
+            resultCount: response.results.length,
+            query: params.query,
+            ...(response.unresponsiveEngines.length > 0
+              ? { unresponsiveEngines: response.unresponsiveEngines }
+              : {})
+          }
         } as AgentToolResult<WebSearchDetails>;
       } catch (err) {
         return {
