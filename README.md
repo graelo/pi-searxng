@@ -2,11 +2,11 @@
 
 A **minimalist** SearXNG web search extension for [Pi](https://github.com/earendil-works/pi).
 
-This is a focused, no-frills implementation that provides only web search and result caching — no content fetching, no repository cloning, no external dependencies beyond SearXNG.
+Source: [github.com/graelo/pi-searxng](https://github.com/graelo/pi-searxng)
 
-> **Note:** This is an independent fork of [jcha0713/pi-searxng](https://github.com/jcha0713/pi-searxng), stripped down to its core search functionality with improved caching.
->
-> **Note:** This is a temp fork of [amartinr/pi-searxng](https://github.com/amartinr/pi-searxng) with a fix on the agent dir.
+This is a focused, no-frills implementation that provides only web search and result caching — no content fetching, no repository cloning, no external services beyond a SearXNG instance.
+
+> **Note:** This is a fork of [amartinr/pi-searxng](https://github.com/amartinr/pi-searxng) (itself a fork of [jcha0713/pi-searxng](https://github.com/jcha0713/pi-searxng)), maintained independently. Notable changes: configuration via [`@graelo/pi-ext-config`](https://github.com/graelo/pi-ext-config) with trusted-project support, removal of the `get_search_result` tool, and an improved in-memory cache.
 
 ## Features
 
