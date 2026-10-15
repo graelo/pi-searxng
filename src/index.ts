@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { search, type SearchResponse } from "./searxng.js";
 import {
   DEFAULT_CONFIG,
+  loadConfig,
   loadConfigForSession,
   type Config,
 } from "./config.js";
@@ -17,6 +18,8 @@ interface CacheEntry {
 interface WebSearchSuccessDetails {
   resultCount: number;
   query: string;
+  /** Engine names the search was restricted to, when requested. */
+  engines?: string[];
   unresponsiveEngines?: string[];
 }
 
@@ -76,8 +79,24 @@ function cleanup(): void {
   }
 }
 
-function getCacheKey(query: string, limit?: number): string {
-  return `${query}\u0000${limit ?? ""}`;
+function getCacheKey(query: string, limit?: number, engines?: string[]): string {
+  return `${query}\u0000${limit ?? ""}\u0000${engines?.join(",") ?? ""}`;
+}
+
+// The tool schema description is built at registration time, before
+// session_start resolves project trust, so only the global config tier is
+// available here. Runtime validation uses the session config instead.
+function enginesDescription(): string {
+  let available: string[] = [];
+  try {
+    available = loadConfig({}).config.engines;
+  } catch {
+    available = [];
+  }
+  if (available.length > 0) {
+    return `Restrict the search to specific engines by name. Available on this instance: ${available.join(", ")}.`;
+  }
+  return "Restrict the search to specific SearXNG engine names, e.g. \"duckduckgo\", \"wikipedia\" (passed to SearXNG as-is).";
 }
 
 function formatSearchResponse(response: SearchResponse): string {
@@ -134,7 +153,10 @@ export default function (pi: ExtensionAPI) {
     description: "Search the web using SearXNG",
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
-      limit: Type.Optional(Type.Number({ description: "Max results to return" }))
+      limit: Type.Optional(Type.Number({ description: "Max results to return" })),
+      engines: Type.Optional(
+        Type.Array(Type.String(), { description: enginesDescription() })
+      )
     }),
     
     async execute(_id, params, signal) {
@@ -149,7 +171,43 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      const cacheKey = getCacheKey(params.query, limit);
+      // Sanitize and validate engine selection against the configured list.
+      // The list is the source of truth: unknown names must not reach SearXNG,
+      // which silently ignores them and would search every engine while the
+      // model believes it restricted the search.
+      const rawEngines: unknown[] = Array.isArray(params.engines) ? params.engines : [];
+      const requestedEngines = [...new Set(
+        rawEngines.map((e) => String(e).trim()).filter(Boolean)
+      )];
+      let engines: string[] | undefined;
+      if (requestedEngines.length > 0) {
+        if (config.engines.length > 0) {
+          const known = requestedEngines.filter((e) => config.engines.includes(e));
+          const unknown = requestedEngines.filter((e) => !config.engines.includes(e));
+          if (unknown.length > 0) {
+            warningNote +=
+              `Note: engine(s) not available on this instance were ignored: ${unknown.join(", ")}. ` +
+              `Available: ${config.engines.join(", ")}.\n\n`;
+          }
+          if (known.length === 0) {
+            return {
+              content: [{
+                type: "text",
+                text:
+                  `Error: none of the requested engines (${requestedEngines.join(", ")}) ` +
+                  `are available on this instance. Available engines: ${config.engines.join(", ")}.`
+              }],
+              details: { error: "engines not available" }
+            } as AgentToolResult<WebSearchDetails>;
+          }
+          engines = known;
+        } else {
+          // No configured list: pass through unvalidated.
+          engines = requestedEngines;
+        }
+      }
+
+      const cacheKey = getCacheKey(params.query, limit, engines);
 
       if (signal?.aborted) {
         return {
@@ -171,7 +229,7 @@ export default function (pi: ExtensionAPI) {
           response = cached.response;
         } else {
           // Not found or stale → search SearXNG
-          response = await search(params.query, limit, config);
+          response = await search(params.query, limit, engines, config);
           if (response.results.length > 0) {
             searchCache.set(cacheKey, {
               response,
@@ -192,6 +250,7 @@ export default function (pi: ExtensionAPI) {
           details: {
             resultCount: response.results.length,
             query: params.query,
+            ...(engines ? { engines } : {}),
             ...(response.unresponsiveEngines.length > 0
               ? { unresponsiveEngines: response.unresponsiveEngines }
               : {})
@@ -208,7 +267,14 @@ export default function (pi: ExtensionAPI) {
     renderCall(args, theme) {
       const q = (args as any).query || "";
       const display = q.length > 50 ? q.slice(0, 47) + "..." : q;
-      return new Text(theme.fg("toolTitle", "search ") + theme.fg("accent", `"${display}"`), 0, 0);
+      const engines = ((args as any).engines as unknown[] | undefined)?.filter(Boolean) ?? [];
+      const tag = engines.length > 0 ? ` [${engines.join(",")}]` : "";
+      return new Text(
+        theme.fg("toolTitle", "search ") +
+          theme.fg("accent", `"${display}"`) +
+          theme.fg("toolTitle", tag),
+        0, 0
+      );
     },
     
     renderResult(result, _opts, theme) {

@@ -24,7 +24,12 @@ export interface SearchResponse {
 
 const MAX_ERROR_BODY_LENGTH = 200;
 
-export async function search(query: string, limit: number | undefined, config: Config): Promise<SearchResponse> {
+export async function search(
+  query: string,
+  limit: number | undefined,
+  engines: string[] | undefined,
+  config: Config
+): Promise<SearchResponse> {
   const url = new URL(`${config.searxngUrl}/search`);
 
   const safesearchMap: Record<string, "0" | "1" | "2"> = {
@@ -36,6 +41,13 @@ export async function search(query: string, limit: number | undefined, config: C
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
   url.searchParams.set("safesearch", safesearchMap[config.safesearch]);
+
+  // Restrict the search to specific engines by name (SearXNG matches engine
+  // names, not shortcuts, and silently ignores unknown ones). An empty or
+  // missing array means "all engines": no parameter is sent at all.
+  if (engines && engines.length > 0) {
+    url.searchParams.set("engines", engines.join(","));
+  }
   
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);

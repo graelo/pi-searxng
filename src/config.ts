@@ -8,6 +8,14 @@ export interface Config {
   cacheTtlMs: number;
   cacheMaxSize: number;
   safesearch: "off" | "moderate" | "strict";
+  /**
+   * Engine names (not shortcuts) available on the SearXNG instance, e.g.
+   * `"exa", "duckduckgo", "wikipedia"`. Used to validate the `engines`
+   * parameter of the `web_search` tool and to advertise valid values in the
+   * tool schema description. It never restricts searches by itself, and must
+   * be kept in sync with the instance's engine list manually.
+   */
+  engines: string[];
 }
 
 export const DEFAULT_CONFIG: Config = {
@@ -17,7 +25,8 @@ export const DEFAULT_CONFIG: Config = {
   cacheFreshnessMs: 15 * 60 * 1000, // 15 minutes
   cacheTtlMs: 24 * 60 * 60 * 1000,  // 24 hours
   cacheMaxSize: 200,
-  safesearch: "off"
+  safesearch: "off",
+  engines: []
 };
 
 export interface SessionConfigContext {
@@ -62,6 +71,12 @@ function validate(config: Config): void {
   const validSafesearchValues = ["off", "moderate", "strict"];
   if (!validSafesearchValues.includes(config.safesearch)) {
     throw new Error("'safesearch' must be one of: 'off', 'moderate', 'strict'");
+  }
+  if (
+    !Array.isArray(config.engines) ||
+    config.engines.some((e) => typeof e !== "string" || e.trim() === "")
+  ) {
+    throw new Error("'engines' must be an array of non-empty strings");
   }
   if (typeof config.cacheTtlMs !== "number" || config.cacheTtlMs <= 0) {
     throw new Error("'cacheTtlMs' must be a positive number");

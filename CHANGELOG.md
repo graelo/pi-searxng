@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Engine selection** — the `web_search` tool accepts an optional `engines` array of
+  SearXNG engine **names** (not shortcuts), restricting the search to those engines.
+  The list of available engines is configured via the new `engines` key in the config
+  file: it is advertised in the tool schema description and used to validate requests.
+  Unknown names produce a warning (searching the valid subset) or an error (when none
+  are valid, no search runs) — SearXNG silently ignores unknown names and would
+  otherwise search every engine while the model believes it restricted the search.
+  Without the config key, requested engines are passed through unvalidated. The key
+  never restricts searches by itself.
+
 ## [1.5.0] - 2026-10-07
 
 ### Fixed
