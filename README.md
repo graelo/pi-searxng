@@ -66,7 +66,8 @@ built-in defaults, not to your global config.
   "searxngUrl": "http://localhost:8080",
   "timeoutMs": 30000,
   "maxResults": 10,
-  "safesearch": "off"
+  "safesearch": "off",
+  "engines": ["exa", "duckduckgo", "startpage", "mojeek", "wikipedia"]
 }
 ```
 
@@ -76,6 +77,7 @@ built-in defaults, not to your global config.
 | `timeoutMs` | number | `30000` | HTTP request timeout in milliseconds |
 | `maxResults` | number | `10` | Maximum number of results returned per search |
 | `safesearch` | string | `"off"` | Content filtering level (`"off"`, `"moderate"`, `"strict"`) |
+| `engines` | string[] | `[]` | Engine **names** (not shortcuts) available on the SearXNG instance. Used to validate the `engines` parameter of `web_search` (see [Engine selection](#engine-selection)). Never restricts searches by itself. |
 
 Or use an environment variable:
 
@@ -93,8 +95,19 @@ Search the web using SearXNG. Results are automatically cached for subsequent id
 
 - `query` (string, required) - Search query
 - `limit` (number, optional) - Max results to return (overrides `maxResults` from config). Note: the actual number returned depends on SearXNG's internal configuration.
+- `engines` (string[], optional) - Restrict the search to specific engine names (e.g. `["duckduckgo", "wikipedia"]`). Valid values are validated against the `engines` config key when it is set.
 
-**Returns:** The matching search results. Identical queries are served from the in-memory cache while the cached entry is fresh.
+**Returns:** The matching search results. Identical queries (including the `limit` and `engines` parameters) are served from the in-memory cache while the cached entry is fresh.
+
+### Engine selection
+
+SearXNG matches engines by **name** (as reported by the instance's `/config` endpoint), not by shortcut, and it **silently ignores unknown names** — a request for a non-existent engine searches *all* engines. The extension guards against this when the `engines` config key is set:
+
+- All requested engines are in the list → the search is restricted to them.
+- Some are unknown → the search runs on the valid subset, and the response starts with a note naming the ignored engines and the available ones.
+- None are valid → the tool returns an error listing the available engines, and no search is performed. Without this, SearXNG would silently search every engine while the model believes it restricted the search.
+
+Without an `engines` key in the config, requested engines are passed through to SearXNG unvalidated. The config list must be kept in sync with the instance's engine list manually — an engine listed in the config but not installed on the server behaves like the pass-through case above.
 
 ## Error Handling
 
@@ -128,7 +141,7 @@ Answer: 42
 
 The package includes an in-memory cache that reduces redundant calls to SearXNG:
 
-- **Query deduplication** — Identical queries with the same limit share a cache entry.
+- **Query deduplication** — Identical queries with the same limit and engine selection share a cache entry.
 - **Empty results are never cached** — Empty result lists are often a transient upstream failure (engines rate-limited or blocked), so they always trigger a new search on the next call instead of being served from cache.
 - **Freshness TTL** — Cache entries are considered fresh for a configurable period (default: **15 min**). Stale entries trigger a new search instead of returning cached results.
 - **Eviction TTL** — Entries that haven't been accessed within **24 hours** are automatically removed.
